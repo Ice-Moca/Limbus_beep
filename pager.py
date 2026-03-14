@@ -43,12 +43,26 @@ BEEP_DURATION_SEC = 2.14  # beep.mp4 길이 (초)
 DOT_COUNT = 3             # 비프 중 표시할 dot 개수
 
 # ─────────────────────────── 경로 ───────────────────────────
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+# PyInstaller 번들 지원: 내장 리소스는 _MEIPASS, 사용자 파일은 exe 옆
+def _get_resource_dir():
+    """번들된 리소스(폰트, 사운드) 경로"""
+    if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+        return sys._MEIPASS
+    return os.path.dirname(os.path.abspath(__file__))
+
+def _get_data_dir():
+    """사용자 데이터(messages.json, config.json) 경로 — exe 옆"""
+    if getattr(sys, 'frozen', False):
+        return os.path.dirname(sys.executable)
+    return os.path.dirname(os.path.abspath(__file__))
+
+RESOURCE_DIR = _get_resource_dir()
+BASE_DIR = _get_data_dir()
 MESSAGES_FILE = os.path.join(BASE_DIR, "messages.json")
-FONT_FILE = os.path.join(BASE_DIR, "neodgm.ttf")
+FONT_FILE = os.path.join(RESOURCE_DIR, "neodgm.ttf")
 # 비프음 파일 경로 - 아래 이름 중 존재하는 파일을 자동 사용
 BEEP_SOUND_CANDIDATES = [
-    os.path.join(BASE_DIR, name)
+    os.path.join(RESOURCE_DIR, name)
     for name in ["beep.wav", "beep.mp3", "beep.ogg", "beep.flac", "beep.m4a"]
 ]
 

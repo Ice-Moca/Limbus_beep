@@ -21,8 +21,15 @@ import math
 import urllib.request
 import ssl
 from datetime import datetime, timedelta
+import sys
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+def _get_data_dir():
+    """사용자 데이터 경로 — PyInstaller exe일 때는 exe 옆"""
+    if getattr(sys, 'frozen', False):
+        return os.path.dirname(sys.executable)
+    return os.path.dirname(os.path.abspath(__file__))
+
+BASE_DIR = _get_data_dir()
 CONFIG_FILE = os.path.join(BASE_DIR, "config.json")
 MESSAGES_FILE = os.path.join(BASE_DIR, "messages.json")
 
