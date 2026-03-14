@@ -19,6 +19,7 @@ import string
 import math
 import os
 import threading
+from datetime import datetime
 
 # ─────────────────────────── 설정 ───────────────────────────
 WINDOW_WIDTH = 1280
@@ -160,6 +161,12 @@ class PagerSimulator:
         self.settings_status = ""         # 상태 메시지
         self.settings_busy = False        # 작업 중 여부
         self.prev_state = self.STATE_IDLE # 설정 이전 상태 복귀용
+
+        # 자동 동기화 (1시간마다)
+        self.auto_sync_interval = 3600   # 초 (1시간)
+        self.auto_sync_timer = 0.0
+        self.auto_sync_enabled = True
+        self._start_auto_sync()
 
     def get_current_stage(self) -> dict | None:
         """현재 단계 데이터를 반환"""
@@ -494,7 +501,7 @@ class PagerSimulator:
             clip = result.stdout.strip()
             if clip and ("calendar.google.com" in clip or ".ics" in clip.lower()):
                 self.url_input_text = clip
-                self.settings_status = "📋 클립보드에서 URL을 가져왔습니다"
+                self.settings_status = "[OK] 클립보드에서 URL을 가져왔습니다"
             else:
                 self.settings_status = "URL을 붙여넣으세요 (Ctrl+V)"
         except Exception:
@@ -504,30 +511,30 @@ class PagerSimulator:
         """입력된 URL을 저장"""
         url = self.url_input_text.strip()
         if not url:
-            self.settings_status = "❌ URL이 비어있습니다"
+            self.settings_status = "[!] URL이 비어있습니다"
             return
         if len(url) < 10:
-            self.settings_status = "❌ 유효한 URL을 입력하세요"
+            self.settings_status = "[!] 유효한 URL을 입력하세요"
             return
 
         try:
             from calendar_sync import set_ics_url
             set_ics_url(url)
-            self.settings_status = "✅ 캘린더 URL 저장 완료!"
+            self.settings_status = "[OK] 캘린더 URL 저장 완료!"
             self.url_input_mode = False
         except Exception as e:
-            self.settings_status = f"❌ 저장 실패: {str(e)[:40]}"
+            self.settings_status = f"[!] 저장 실패: {str(e)[:40]}"
 
     def do_calendar_sync(self):
         """캘린더 동기화를 백그라운드 스레드에서 실행"""
         if self.settings_busy:
             return
         if not self.is_calendar_configured():
-            self.settings_status = "❌ 먼저 캘린더 URL을 설정하세요"
+            self.settings_status = "[!] 먼저 캘린더 URL을 설정하세요"
             return
 
         self.settings_busy = True
-        self.settings_status = "📅 일정 동기화 중..."
+        self.settings_status = "[..] 일정 동기화 중..."
 
         def _sync():
             try:
@@ -537,11 +544,11 @@ class PagerSimulator:
                     self.messages = load_messages(MESSAGES_FILE)
                     self.current_stage_idx = 0
                     self.current_msg_idx = 0
-                    self.settings_status = f"✅ 동기화 완료! ({len(self.messages)}단계)"
+                    self.settings_status = f"[OK] 동기화 완료! ({len(self.messages)}단계)"
                 else:
-                    self.settings_status = "❌ 동기화 실패"
+                    self.settings_status = "[!] 동기화 실패"
             except Exception as e:
-                self.settings_status = f"❌ 오류: {str(e)[:40]}"
+                self.settings_status = f"[!] 오류: {str(e)[:40]}"
             finally:
                 self.settings_busy = False
 
@@ -553,9 +560,49 @@ class PagerSimulator:
         try:
             from calendar_sync import clear_ics_url
             clear_ics_url()
-            self.settings_status = "✅ URL 삭제 완료"
+            self.settings_status = "[OK] URL 삭제 완료"
         except Exception as e:
-            self.settings_status = f"❌ 오류: {str(e)[:40]}"
+            self.settings_status = f"[!] 오류: {str(e)[:40]}"
+
+    # ── 자동 동기화 ──────────────────────────────────────────
+
+    def _start_auto_sync(self):
+        """최초 실행 시 자동 동기화 타이머 시작 (백그라운드 반복)"""
+        if not self.auto_sync_enabled:
+            return
+        self._auto_sync_thread = threading.Thread(
+            target=self._auto_sync_loop, daemon=True
+        )
+        self._auto_sync_thread.start()
+
+    def _auto_sync_loop(self):
+        """백그라운드에서 auto_sync_interval마다 캘린더 동기화"""
+        import time as _time
+        # 시작 직후 1회 동기화
+        self._do_background_sync()
+        while self.auto_sync_enabled:
+            _time.sleep(self.auto_sync_interval)
+            if not self.auto_sync_enabled:
+                break
+            self._do_background_sync()
+
+    def _do_background_sync(self):
+        """백그라운드 동기화 (IDLE 상태일 때만 메시지 리로드)"""
+        try:
+            from calendar_sync import is_configured, sync_calendar
+            if not is_configured():
+                return
+            result = sync_calendar()
+            if result:
+                # IDLE 상태일 때만 메시지를 갱신 (진행 중 방해 방지)
+                if self.state == self.STATE_IDLE and self.current_stage_idx == 0:
+                    self.messages = load_messages(MESSAGES_FILE)
+                    self.current_msg_idx = 0
+                print(f"[자동 동기화] 완료 - {datetime.now().strftime('%H:%M:%S')}")
+            else:
+                print(f"[자동 동기화] 실패 - {datetime.now().strftime('%H:%M:%S')}")
+        except Exception as e:
+            print(f"[자동 동기화] 오류: {e}")
 
     def handle_settings_input(self, key):
         """설정 화면 키 입력 처리"""
@@ -582,7 +629,7 @@ class PagerSimulator:
                     clip = result.stdout.strip()
                     if clip:
                         self.url_input_text = clip
-                        self.settings_status = "📋 붙여넣기 완료"
+                        self.settings_status = "[OK] 붙여넣기 완료"
                 except Exception:
                     pass
             return
@@ -668,7 +715,7 @@ class PagerSimulator:
                 self.screen.blit(st_surf, st_rect)
 
         # 하단 안내
-        hint = "[↑↓] 이동  [SPACE] 선택  [S/ESC] 닫기"
+        hint = "[UP/DN] 이동  [SPACE] 선택  [S/ESC] 닫기"
         hint_surf = self.font_tiny.render(hint, True, DIM_TEXT_COLOR)
         hint_rect = hint_surf.get_rect(centerx=WINDOW_WIDTH // 2, y=550)
         self.screen.blit(hint_surf, hint_rect)
