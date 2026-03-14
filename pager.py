@@ -230,11 +230,10 @@ class PagerSimulator:
         self.beep_sound.play()  # 1회만 재생
 
     def start_decoding(self):
-        """디코딩 애니메이션 단계 시작 - 사운드 다시 재생"""
+        """디코딩 애니메이션 단계 시작 - 비프음은 이미 재생 중"""
         self.state = self.STATE_DECODING
         self.state_timer = 0
         self.decode_progress = 0.0
-        self.beep_sound.play()  # 복호화 중 사운드 다시 재생
 
     def start_revealed(self):
         """복호화된 메시지 출력 단계"""
@@ -292,13 +291,14 @@ class PagerSimulator:
             self.cursor_timer = 0
 
         if self.state == self.STATE_BEEPING:
-            # 사운드(2.14초) 끝나면 자동으로 디코딩 시작
-            if self.state_timer > BEEP_DURATION_SEC + 0.3:
+            # 1초 후 자동으로 디코딩 화면으로 전환 (비프음은 계속 재생 중)
+            if self.state_timer >= 1.0:
                 self.start_decoding()
 
         elif self.state == self.STATE_DECODING:
-            # 2.14초에 걸쳐 디코딩 (사운드 길이에 맞춤)
-            self.decode_progress = min(1.0, self.state_timer / BEEP_DURATION_SEC)
+            # 0.9초(1초~1.9초 구간)에 걸쳐 디코딩, 이후 복호화 완료 화면 유지
+            decode_duration = 0.9
+            self.decode_progress = min(1.0, self.state_timer / decode_duration)
             if self.decode_progress >= 1.0:
                 self.start_revealed()
 
