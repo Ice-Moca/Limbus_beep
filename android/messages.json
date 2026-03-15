@@ -1,0 +1,29 @@
+[
+    {
+        "stage": 1,
+        "messages": [
+            {
+                "text": "아침식사",
+                "time_info": "09:00 - 10:00"
+            }
+        ]
+    },
+    {
+        "stage": 2,
+        "messages": [
+            {
+                "text": "점심식사",
+                "time_info": "13:00 - 14:00"
+            }
+        ]
+    },
+    {
+        "stage": 3,
+        "messages": [
+            {
+                "text": "저녁식사",
+                "time_info": "19:00 - 20:00"
+            }
+        ]
+    }
+]
