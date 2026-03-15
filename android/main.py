@@ -250,6 +250,10 @@ class PagerScreen(FloatLayout):
         Clock.schedule_interval(self._tick, 1.0 / 30.0)
         self._refresh_ui()
 
+        # ── 자동 동기화 (1시간마다) ──
+        self._auto_sync_interval = 3600  # 초
+        Clock.schedule_once(self._auto_sync_first, 5)  # 앱 시작 5초 후 최초 동기화
+
     # ───────── 캔버스 헬퍼 ─────────
 
     def _update_bg(self, *_):
@@ -563,6 +567,38 @@ class PagerScreen(FloatLayout):
         self._settings_status = f'메시지 로드 완료 ({len(self.messages)}단계)'
         self._refresh_ui()
 
+    # ───────── 자동 동기화 ─────────
+
+    def _auto_sync_first(self, dt):
+        """앱 시작 직후 최초 1회 동기화 + 반복 스케줄"""
+        self._auto_sync_run()
+        Clock.schedule_interval(self._auto_sync_tick, self._auto_sync_interval)
+
+    def _auto_sync_tick(self, dt):
+        self._auto_sync_run()
+
+    def _auto_sync_run(self):
+        """백그라운드 동기화 — configured일 때만, IDLE일 때만 리로드"""
+        import threading
+        def _bg():
+            try:
+                from calendar_sync_android import is_configured, sync_calendar
+                if not is_configured():
+                    return
+                ok, msg = sync_calendar()
+                if ok and self.state == ST_IDLE and self.stage_idx == 0:
+                    Clock.schedule_once(lambda dt: self._silent_reload(), 0)
+                Logger.info('Pager auto-sync: %s', msg)
+            except Exception as e:
+                Logger.warning('Pager auto-sync error: %s', e)
+        threading.Thread(target=_bg, daemon=True).start()
+
+    def _silent_reload(self):
+        """상태 표시 없이 메시지만 리로드"""
+        self.messages = load_messages()
+        self.stage_idx = 0
+        self.msg_idx = 0
+
     # ───────── 메인 루프 ─────────
 
     def _tick(self, dt):
@@ -750,7 +786,7 @@ class PagerApp(App):
     def build(self):
         Logger.info('Pager: build() start')
         Window.clearcolor = (0, 0, 0, 1)
-        self.title = 'Pager'
+        self.title = 'Beep'
         # 폰트를 Kivy 초기화 후에 등록
         _init_font()
         try:

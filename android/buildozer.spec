@@ -1,7 +1,7 @@
 [app]
 
 # 앱 기본 정보 (title은 ASCII만 사용 — 한글 title은 빌드 시 인코딩 오류 유발)
-title = Pager
+title = Beep
 package.name = pager
 package.domain = org.snucse
 source.dir = .
