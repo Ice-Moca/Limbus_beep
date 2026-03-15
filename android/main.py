@@ -17,6 +17,7 @@ from kivy.uix.textinput import TextInput
 from kivy.clock import Clock
 from kivy.core.window import Window
 from kivy.graphics import Color, Rectangle, Line
+from kivy.core.audio import SoundLoader
 from kivy.logger import Logger
 
 
@@ -183,6 +184,21 @@ class PagerScreen(FloatLayout):
         self._url_input_visible = False  # URL 입력창 표시 여부
         self._url_input = None           # TextInput 위젯
 
+        # ── 사운드 ──
+        self._beep_sound = None
+        for d in (_app_dir(), '.'):
+            fp = os.path.join(d, 'beep.wav')
+            if os.path.exists(fp):
+                try:
+                    self._beep_sound = SoundLoader.load(fp)
+                    if self._beep_sound:
+                        Logger.info('Pager: beep.wav loaded from %s', fp)
+                        break
+                except Exception as e:
+                    Logger.warning('Pager: sound load error: %s', e)
+        if not self._beep_sound:
+            Logger.warning('Pager: beep.wav not found, no sound')
+
         # ── 배경 캔버스 ──
         with self.canvas.before:
             Color(*C_BG)
@@ -300,11 +316,23 @@ class PagerScreen(FloatLayout):
         self.state = ST_BEEPING
         self.timer = 0.0
         self.enc_text = _rand_chars()
+        # 비프음 재생
+        if self._beep_sound:
+            try:
+                self._beep_sound.play()
+            except Exception:
+                pass
 
     def _enter_decode(self):
         self.state = ST_DECODING
         self.timer = 0.0
         self.dec_progress = 0.0
+        # 비프음 정지
+        if self._beep_sound:
+            try:
+                self._beep_sound.stop()
+            except Exception:
+                pass
 
     def _enter_reveal(self):
         self.state = ST_REVEALED
