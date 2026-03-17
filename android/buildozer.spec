@@ -28,7 +28,11 @@ orientation = landscape
 # 전체 화면
 fullscreen = 1
 
-# Presplash (검은 배경)
+# 앱 아이콘
+icon.filename = %(source.dir)s/icon.png
+
+# Presplash (검은 배경, 기본 Kivy 로고 제거)
+presplash.filename = %(source.dir)s/presplash.png
 android.presplash_color = #000000
 
 # 단일 아키텍처 (빌드 안정성 향상)
