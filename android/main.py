@@ -219,9 +219,11 @@ class PagerScreen(FloatLayout):
             size_hint=(0.9, 0.07), **common)
 
         self.lbl_main = Label(
-            font_size='42sp', color=C_ACCENT,
+            font_size='36sp', color=C_ACCENT,
             pos_hint={'center_x': .5, 'center_y': .52},
-            size_hint=(0.95, 0.15), **common)
+            size_hint=(0.98, 0.28),
+            text_size=(None, None),
+            **common)
 
         self.lbl_sub = Label(
             font_size='20sp', color=C_DIM,
@@ -251,7 +253,7 @@ class PagerScreen(FloatLayout):
         self._refresh_ui()
 
         # ── 자동 동기화 (1시간마다) ──
-        self._auto_sync_interval = 3600  # 초
+        self._auto_sync_interval = 300  # 초 (5분)
         Clock.schedule_once(self._auto_sync_first, 5)  # 앱 시작 5초 후 최초 동기화
 
     # ───────── 캔버스 헬퍼 ─────────
@@ -442,28 +444,29 @@ class PagerScreen(FloatLayout):
         self._refresh_ui()
 
     def _handle_settings_touch(self, touch):
-        """설정 화면 터치 위치로 메뉴 선택"""
-
+        """설정 화면 터치 위치로 메뉴 선택 (3분할 버튼)"""
         h = self.height
-        y_ratio = touch.y / h if h > 0 else 0.5
+        y = touch.y
+        y_ratio = y / h if h > 0 else 0.5
 
         # 하단: 닫기 영역 (y < 0.15)
         if y_ratio < 0.15:
             self._close_settings()
             return
 
-        # 메뉴 영역 (위에서부터)
-        if y_ratio > 0.62:
-            # URL 설정
-            self._show_url_input()
-        elif y_ratio > 0.48:
-            # 동기화 실행
-            self._do_sync()
-        elif y_ratio > 0.34:
-            # 메시지 새로고침
-            self._reload_messages()
+        # 상단 85% 영역을 3등분하여 각 버튼에 대응
+        # 버튼 영역: center_y=0.52 기준으로 위아래 0.15씩(0.37~0.67)만 인식
+        if 0.37 <= y_ratio <= 0.67:
+            w = self.width
+            x = touch.x
+            # 3등분
+            if x < w / 3:
+                self._show_url_input()
+            elif x < w * 2 / 3:
+                self._do_sync()
+            else:
+                self._reload_messages()
         else:
-            # 닫기
             self._close_settings()
 
     # ───────── URL 입력 ─────────
@@ -525,7 +528,12 @@ class PagerScreen(FloatLayout):
         try:
             from calendar_sync_android import set_ics_url
             set_ics_url(url)
-            self._settings_status = 'URL 저장 완료!'
+            self._settings_status = 'URL 저장 완료! 동기화 중...'
+            self._hide_url_input()
+            self._refresh_ui()
+            # URL 저장 후 바로 동기화 실행
+            self._do_sync()
+            return
         except Exception as e:
             self._settings_status = f'저장 실패: {str(e)[:25]}'
         self._hide_url_input()
@@ -631,7 +639,7 @@ class PagerScreen(FloatLayout):
                      self.lbl_sub, self.lbl_dots, self.lbl_hint):
             lbl.text = ''
 
-        self.lbl_main.font_size = '42sp'
+        self.lbl_main.font_size = '36sp'
 
         if self.state == ST_IDLE:
             self._ui_idle()
@@ -716,8 +724,14 @@ class PagerScreen(FloatLayout):
         if stage:
             self.lbl_header.text = f'해금 {stage["stage"]}단계'
 
-        self.lbl_main.text = self._cur_text() or ''
+        # 긴 메시지 요약 표시 (앞 30자 ... 뒤 30자)
+        msg = self._cur_text() or ''
+        if len(msg) > 80:
+            msg = msg[:30] + '\n...\n' + msg[-30:]
+        self.lbl_main.text = msg
         self.lbl_main.color = list(C_ACCENT)
+        self.lbl_main.text_size = (self.lbl_main.width * 0.98, None)
+        self.lbl_main.shorten = False
 
         ti = self._cur_time()
         if ti:
@@ -764,11 +778,11 @@ class PagerScreen(FloatLayout):
             self.lbl_status.color = list(C_DIM)
 
         if not self._url_input_visible:
-            self.lbl_main.text = '[ URL 설정 ]'
-            self.lbl_main.font_size = '28sp'
+            # 3개 버튼처럼 보이게
+            self.lbl_main.text = '[ URL 입력 ]    [ 동기화 ]    [ 새로고침 ]'
+            self.lbl_main.font_size = '24sp'
             self.lbl_main.color = list(C_TEXT)
-
-            self.lbl_sub.text = '[ 캘린더 동기화 ]    [ 새로고침 ]'
+            self.lbl_sub.text = ''
             self.lbl_sub.color = list(C_TEXT)
         else:
             self.lbl_main.text = ''
